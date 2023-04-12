@@ -17,7 +17,7 @@
 #include QMK_KEYBOARD_H
 
 /* bsb keymap */
-#define BSB_VERSION "v1.0.7"
+#define BSB_VERSION "v1.1.1"
 
 // clang-format off
 enum layers
@@ -27,7 +27,6 @@ enum layers
     LAYER_FN,
     LAYER_GIT,
     LAYER_VSCODE,
-    LAYER_ENCODER_ALTTAB
 };
 
 // layer shorthands for keymap use
@@ -36,33 +35,9 @@ enum layers
 #define L_FN    LAYER_FN
 #define L_GIT   LAYER_GIT
 #define L_VSC   LAYER_VSCODE
-#define L_ALTB  LAYER_ENCODER_ALTTAB
-
-// layer mask for lighting use
-#define LIGHTING_LAYERS ((layer_state_t) \
-                        ( (1 << LAYER_GIT) \
-                        | (1 << LAYER_VSCODE)))
 
 #define KC_TASK LGUI(KC_TAB)
 #define KC_FLXP LGUI(KC_E)
-
-// led indexes
-#define F1_LED_INDEX (1)
-#define F2_LED_INDEX (2)
-#define F3_LED_INDEX (3)
-#define F4_LED_INDEX (4)
-#define F5_LED_INDEX (5)
-#define F6_LED_INDEX (6)
-#define F7_LED_INDEX (7)
-#define F8_LED_INDEX (8)
-#define F9_LED_INDEX (9)
-#define F10_LED_INDEX (10)
-#define F11_LED_INDEX (11)
-#define F12_LED_INDEX (12)
-
-//colours
-#define RGB_GIT_GREEN    0x00, 0x60, 0x00
-#define RGB_VSC_BLUE     0x00, 0x48, 0x80
 
 // return value defines
 #define CONTINUE (true)     // continue processing this event
@@ -72,10 +47,10 @@ enum layers
 enum custom_keycodes {
     // see quantum_keycodes.h and keycodes.h
     FWVER = SAFE_RANGE,
+    ENCDR,
     VS_ST, // vsc debug step
     VS_SI, // vsc debug step in
     VS_SO, // vsc debug step out
-    LGVW, // "longview"
 };
 
 /****************** TAP DANCE STUFF ******************/
@@ -84,7 +59,6 @@ enum {
     WSL_H, // wsl helper
     GT_ST, // git status
     GT_SW, // git switch
-    ENCDR, // encoder dual-use layer switch
 };
 
 void td_wsl_helper(tap_dance_state_t *state, void *user_data)
@@ -168,10 +142,50 @@ void td_git_switch(tap_dance_state_t *state, void *user_data)
 tap_dance_action_t tap_dance_actions[] = {
     [WSL_H] = ACTION_TAP_DANCE_FN(td_wsl_helper),
     [GT_ST] = ACTION_TAP_DANCE_FN(td_git_status),
-    [GT_SW] = ACTION_TAP_DANCE_FN(td_git_switch),
+    [GT_SW] = ACTION_TAP_DANCE_FN(td_git_switch)
 };
 
 /****************** END TAP DANCE STUFF ******************/
+
+//  ██████████ ██████   █████   █████████     ███████    ██████████   ██████████ ███████████
+// ░░███░░░░░█░░██████ ░░███   ███░░░░░███  ███░░░░░███ ░░███░░░░███ ░░███░░░░░█░░███░░░░░███
+//  ░███  █ ░  ░███░███ ░███  ███     ░░░  ███     ░░███ ░███   ░░███ ░███  █ ░  ░███    ░███
+//  ░██████    ░███░░███░███ ░███         ░███      ░███ ░███    ░███ ░██████    ░██████████
+//  ░███░░█    ░███ ░░██████ ░███         ░███      ░███ ░███    ░███ ░███░░█    ░███░░░░░███
+//  ░███ ░   █ ░███  ░░█████ ░░███     ███░░███     ███  ░███    ███  ░███ ░   █ ░███    ░███
+//  ██████████ █████  ░░█████ ░░█████████  ░░░███████░   ██████████   ██████████ █████   █████
+// ░░░░░░░░░░ ░░░░░    ░░░░░   ░░░░░░░░░     ░░░░░░░    ░░░░░░░░░░   ░░░░░░░░░░ ░░░░░   ░░░░░
+
+
+
+enum encoder_modes {
+    em_first,
+    em_volume = em_first,
+    em_scroll,
+    em_alttab,
+    em_last = em_alttab,
+};
+
+static enum encoder_modes current_encoder_mode = em_volume;
+
+
+void set_encoder_mode(enum encoder_modes new_encoder_mode)
+{
+    current_encoder_mode = new_encoder_mode;
+}
+
+void toggle_encoder_mode(void)
+{
+    switch (current_encoder_mode)
+    {
+    case em_last:
+        current_encoder_mode = em_first;
+        break;
+    default:
+        ++current_encoder_mode;
+        break;
+    }
+}
 
 /****************** ALT TAB ENCODER STUFF ****************/
 bool is_alt_tab_active = false;
@@ -217,12 +231,23 @@ bool encoder_update_user(uint8_t index, bool clockwise)
 
     if (index == 0)
     {
-        if (IS_LAYER_ON(LAYER_ENCODER_ALTTAB))
+        switch (current_encoder_mode)
         {
+        case em_alttab:
             return_val = alt_tab_encoder(index, clockwise);
-        }
-        else
-        {
+            break;
+        case em_scroll:
+            if (clockwise)
+            {
+                tap_code16(KC_MS_WH_DOWN);
+            }
+            else
+            {
+                tap_code16(KC_MS_WH_UP);
+            }
+            break;
+        case em_volume:
+        default:
             // fall back to volume control
             if (clockwise)
             {
@@ -232,17 +257,45 @@ bool encoder_update_user(uint8_t index, bool clockwise)
             {
                 tap_code16(KC_VOLD);
             }
+            break;
         }
     }
-
     return return_val;
 }
 
+bool press_encoder(keyrecord_t *record)
+{
+    if (record->event.pressed)
+    {
+        switch (current_encoder_mode)
+        {
+        default:
+        case em_volume:
+            tap_code16(KC_MUTE);
+            return FINISHED;
+
+        case em_scroll:
+            // currently nothing?
+            return FINISHED;
+
+        case em_alttab:
+            tap_code16(KC_ENTER);
+            return FINISHED;
+        }
+    }
+    else
+    {
+        return CONTINUE;
+    }
+
+}
+
+#define ALT_TAB_TIMEOUT_MS (2000)
 void matrix_scan_user(void)
 {
     if (is_alt_tab_active)
     {
-        if (timer_elapsed(alt_tab_timer) > 1250)
+        if (timer_elapsed(alt_tab_timer) > ALT_TAB_TIMEOUT_MS)
         {
             unregister_code(KC_LALT);
             is_alt_tab_active = false;
@@ -252,14 +305,16 @@ void matrix_scan_user(void)
 
 /****************** END ALT TAB ENCODER STUFF ****************/
 
+#define TH(kc) (LT(0, kc))
+
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [BASE_LAYER_HOME] = LAYOUT_ansi_82(
-        KC_ESC,   KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,   KC_F12,   KC_PSCR,            KC_MUTE,
-        KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,   KC_BSPC,            KC_DEL,
-        KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,  KC_BSLS,            KC_HOME,
-        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,            KC_ENT,             KC_END,
-        KC_LSFT,            KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,            KC_RSFT,  KC_UP,
-        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  MO(L_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
+        KC_ESC,   KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,  TH(KC_F12),  KC_PSCR,            ENCDR,
+    TH(KC_GRV),   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,    KC_BSPC,          TH(KC_DEL),
+        KC_TAB,   KC_Q,     KC_W,     KC_E, TH(KC_R),     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,   KC_BSLS,          TH(KC_HOME),
+        QK_LEAD,  KC_A,     KC_S,     KC_D, TH(KC_F),     KC_G,     KC_H,     KC_J,     KC_K,     TH(KC_L), KC_SCLN,  KC_QUOT,             KC_ENT,           TH(KC_END),
+        KC_LSFT,            KC_Z, TH(KC_X), TH(KC_C), TH(KC_V),     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,             KC_RSFT,  KC_UP,
+        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT, MO(L_FN),  KC_RCTL,   KC_LEFT,  KC_DOWN,  KC_RGHT),
 
     // Main work layer currently empty, except for encoder map
     [BASE_LAYER_WORK] = LAYOUT_ansi_82(
@@ -271,12 +326,12 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         _______,  _______,  _______,                                _______,                                _______,  _______,  _______,  _______,  _______,  _______),
 
     [LAYER_FN] = LAYOUT_ansi_82(
-        QK_MAKE,  KC_BRID,  KC_BRIU,  KC_TASK,  KC_FLXP,  RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,    KC_VOLU,  _______,            TG(L_ALTB),
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,            LGVW,
+        QK_MAKE,  KC_BRID,  KC_BRIU,  KC_TASK,  KC_FLXP,  RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,    KC_VOLU,  _______,            KC_MUTE,
+        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,            KC_PGUP,
         RGB_TOG,  RGB_MOD,  RGB_VAI,  RGB_HUI,  RGB_SAI,  RGB_SPI,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,            KC_PGDN,
-        _______,  RGB_RMOD, RGB_VAD,  RGB_HUD,  RGB_SAD,  RGB_SPD,  _______,  _______,  _______,  _______,  _______,  _______,              _______,            KC_PGUP,
-        _______,            _______,  _______,  _______,  FWVER,    _______,  NK_TOGG,  _______,  _______,  _______,  _______,              _______,  TG(L_VSC),
-        _______,  _______,  _______,                                _______,                                _______,  _______,    _______,TG(L_GIT),  _______,  _______),
+        _______,  RGB_RMOD, RGB_VAD,  RGB_HUD,  RGB_SAD,  RGB_SPD,  _______,  _______,  _______,  _______,  _______,  _______,              _______,            KC_END,
+        _______,            _______,  _______,  _______,  FWVER,    _______,  NK_TOGG,  _______,  _______,  _______,  _______,              _______,  _______,
+        _______,  _______,  _______,                                _______,                                _______,  _______,    _______,TG(L_GIT),  TG(L_VSC),  _______),
 
     [LAYER_GIT] = LAYOUT_ansi_82(
         _______,  _______,TD(WSL_H),TD(GT_ST),TD(GT_SW),  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,
@@ -292,16 +347,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,
         _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,            _______,
         _______,            _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,  _______,
-        _______,  _______,  _______,                                _______,                                _______,  _______,  _______,  _______,  _______,  _______),
-
-    // Empty except for encoder map
-    [LAYER_ENCODER_ALTTAB] = LAYOUT_ansi_82(
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,            _______,
-        _______,            _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,            _______,  _______,
-        _______,  _______,  _______,                                _______,                                _______,  _______,  _______,  _______,  _______,  _______),
+        _______,  _______,  _______,                                _______,                                _______,  _______,  _______,  _______,  _______,  _______)
 };
 
 /* keep this here in case I need it:
@@ -336,19 +382,141 @@ static bool work_mode = false;
 // funcs for each based on layer
 bool process_record_user(uint16_t keycode, keyrecord_t *record)
 {
-    bool return_val = FINISHED;
+    if (keycode == ENCDR)
+    {
+        return press_encoder(record);
+    }
+
+    // catch enter during leader sequence?
 
     if (record->event.pressed)
     {
+        /*
+         * tap & hold
+         *
+         * if (record->tap.count >= 1) && (record->event.pressed)
+         *      --> either return CONTINUE for regular processing
+         *      OR perform tap action then return FINISHED (replace regular processing)
+         * else record->event.pressed
+         *       --> perform hold action
+         *      --> return FINISHED (override)
+         * else
+         *      --> return CONTINUE for regular hold
+         */
+
         // global customs
         switch (keycode)
         {
-        case LGVW:
-            SEND_STRING("longview");
-            break;
+        case TH(KC_GRV):
+            if (!record->tap.count && record->event.pressed)
+            {
+                SEND_STRING("cd ~/");; // Intercept hold function to send "cd ~/"
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_X):
+            if (!record->tap.count && record->event.pressed)
+            {
+                tap_code16(C(KC_X)); // Intercept hold function to send Ctrl-X
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_C):
+            if (!record->tap.count && record->event.pressed)
+            {
+                tap_code16(C(KC_C)); // Intercept hold function to send Ctrl-C
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_V):
+            if (!record->tap.count && record->event.pressed)
+            {
+                tap_code16(C(KC_V)); // Intercept hold function to send Ctrl-V
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_F):
+            if (!record->tap.count && record->event.pressed)
+            {
+                tap_code16(C(KC_F)); // Intercept hold function to send Ctrl-F
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_DEL):
+            if (!record->tap.count && record->event.pressed)
+            {
+                set_encoder_mode(em_scroll);
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_HOME):
+            if (!record->tap.count && record->event.pressed)
+            {
+                set_encoder_mode(em_alttab);
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_END):
+            if (!record->tap.count && record->event.pressed)
+            {
+                set_encoder_mode(em_volume);
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_L):
+            if (!record->tap.count && record->event.pressed)
+            {
+                SEND_STRING("longview");
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_R):
+            if (!record->tap.count && record->event.pressed)
+            {
+                SEND_STRING("reliable");
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        case TH(KC_F12):
+            if (!record->tap.count && record->event.pressed)
+            {
+                /* open the R/W props dialog & read the SEL */
+                tap_code16(KC_F12);
+                tap_code16(KC_TAB);
+                tap_code16(KC_TAB);
+                SEND_STRING("128");
+                tap_code16(KC_TAB);
+                tap_code16(KC_TAB);
+                tap_code16(KC_1);
+                tap_code16(KC_TAB);
+                SEND_STRING("2091");
+
+                return FINISHED;
+            }
+            return CONTINUE;
+
+        // case TH(KC_CAPS):
+        //     if (!record->tap.count && record->event.pressed)
+        //     {
+        //         leader_start(); // Intercept hold function to send LEADER
+        //         return FINISHED;
+        //     }
+        //     return CONTINUE;
+
         case FWVER:
             SEND_STRING(BSB_VERSION);
-            break;
+            return FINISHED;
+
         default:
             break;
         }
@@ -358,71 +526,119 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record)
             switch (keycode)
             {
             case VS_ST:
-                tap_code(KC_F10);
+                tap_code16(KC_F10);
                 break;
             case VS_SI:
-                tap_code(KC_F11);
+                tap_code16(KC_F11);
                 break;
             case VS_SO:
-                add_mods(MOD_MASK_SHIFT);
-                tap_code(KC_F11);
-                del_mods(MOD_MASK_SHIFT);
+                tap_code16(S(KC_F11));
                 break;
             default:
                 break;
             }
+            return FINISHED;
         }
     }
 
-    return_val = CONTINUE;
-
 //exit:
-    return return_val;
+    return CONTINUE;
 };
 
 
+/****************** LEADER STUFF ****************/
 
-// /* LEADER STUFF */
-// void leader_start_user(void) {
-//     // Do something when the leader key is pressed
-// }
+void leader_start_user(void)
+{
+    // Do something when the leader key is pressed
+}
 
-// void leader_end_user(void) {
-//     if (leader_sequence_one_key(KC_C))
-//     {
-//         SEND_STRING("code ." KC_ENTER);
-//     }
-//     else if (leader_sequence_one_key(KC_E))
-//     {
-//         SEND_STRING("explorer.exe ." KC_ENTER);
-//     }
-//     else if (leader_sequence_one_key(KC_L))
-//     {
-//         SEND_STRING("longview");
-//     }
-//     // git stuff
-//     else if (leader_sequence_two_keys(KC_G, KC_F))
-//     {
-//         SEND_STRING("git fetch" KC_ENTER);
-//     }
-//     else if (leader_sequence_two_keys(KC_G, KC_s))
-//     {
-//         SEND_STRING("git status" KC_ENTER);
-//     }
-//     else if (leader_sequence_three_keys(KC_D, KC_D, KC_S))
-//     {
-//         // Leader, d, d, s => Types the below string
-//         SEND_STRING("https://start.duckduckgo.com\n");
-//     }
-//     else if (leader_sequence_two_keys(KC_A, KC_S))
-//     {
-//         // Leader, a, s => GUI+S
-//         tap_code16(LGUI(KC_S));
-//     }
-// }
+void leader_end_user(void)
+{
+    if (leader_first_key_is(KC_G))
+    {
+        if (leader_sequence_two_keys(KC_G, KC_F))
+        {
+            SEND_STRING("git fetch");
+        }
+        else if (leader_sequence_two_keys(KC_G, KC_S))
+        {
+            SEND_STRING("git status");
+        }
+        else if (leader_sequence_two_keys(KC_G, KC_A))
+        {
+            SEND_STRING("git fetch && git pull && git submodule update");
+        }
+        else if (leader_sequence_two_keys(KC_G, KC_P))
+        {
+            SEND_STRING("git pull");
+        }
+        else if (leader_sequence_two_keys(KC_G, KC_W))
+        {
+            SEND_STRING("git switch");
+        }
+        else if (leader_sequence_three_keys(KC_G, KC_W, KC_D))
+        {
+            SEND_STRING("git switch develop");
+        }
+        else if (leader_sequence_three_keys(KC_G, KC_W, KC_F))
+        {
+            SEND_STRING("git switch feature/");
+        }
+        else if (leader_sequence_three_keys(KC_G, KC_F, KC_P))
+        {
+            SEND_STRING("git fetch && git pull");
+        }
+        else if (leader_sequence_three_keys(KC_G, KC_S, KC_U))
+        {
+            SEND_STRING("git submodule update");
+        }
+    }
+    else
+    {
+        if (leader_sequence_one_key(KC_C))
+        {
+            SEND_STRING("code .");
+            tap_code(KC_ENTER);
+        }
+        else if (leader_sequence_one_key(KC_E))
+        {
+            SEND_STRING("explorer.exe .");
+            tap_code(KC_ENTER);
+        }
+        else if (leader_sequence_one_key(KC_L))
+        {
+            SEND_STRING("longview");
+        }
+    }
+}
 
+/****************** END LEADER STUFF ****************/
 
+// ██████╗  ██████╗ ██████╗     ███████╗████████╗██╗   ██╗███████╗███████╗
+// ██╔══██╗██╔════╝ ██╔══██╗    ██╔════╝╚══██╔══╝██║   ██║██╔════╝██╔════╝
+// ██████╔╝██║  ███╗██████╔╝    ███████╗   ██║   ██║   ██║█████╗  █████╗
+// ██╔══██╗██║   ██║██╔══██╗    ╚════██║   ██║   ██║   ██║██╔══╝  ██╔══╝
+// ██║  ██║╚██████╔╝██████╔╝    ███████║   ██║   ╚██████╔╝██║     ██║
+// ╚═╝  ╚═╝ ╚═════╝ ╚═════╝     ╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝
 
+// led indexes
+#define F1_LED_INDEX (1)
+#define F2_LED_INDEX (2)
+#define F3_LED_INDEX (3)
+#define F4_LED_INDEX (4)
+#define F5_LED_INDEX (5)
+#define F6_LED_INDEX (6)
+#define F7_LED_INDEX (7)
+#define F8_LED_INDEX (8)
+#define F9_LED_INDEX (9)
+#define F10_LED_INDEX (10)
+#define F11_LED_INDEX (11)
+#define F12_LED_INDEX (12)
+
+//colours
+#define RGB_GIT_GREEN    0x00, 0x60, 0x00
+#define RGB_VSC_BLUE     0x00, 0x48, 0x80
 
 void set_all_keys_in_layer(uint8_t layer, \
                             uint8_t led_min, uint8_t led_max, \
@@ -447,43 +663,30 @@ void set_all_keys_in_layer(uint8_t layer, \
 
 void do_mode_lighting(uint8_t led_min, uint8_t led_max)
 {
-    if ((!IS_LAYER_ON(LAYER_GIT)) && (!IS_LAYER_ON(LAYER_VSCODE)))
-    {
-        goto exit;
-    }
-
-    bool rgb_was_off = false;
-    if (rgb_matrix_get_flags() == LED_FLAG_NONE)
-    {
-        rgb_was_off = true;
-        rgb_matrix_set_flags(LED_FLAG_INDICATOR);
-    }
-
     if (IS_LAYER_ON(LAYER_GIT))
-    {
         set_all_keys_in_layer(LAYER_GIT, led_min, led_max, RGB_GIT_GREEN);
-    }
-    else if (rgb_was_off)
-    {
-        set_all_keys_in_layer(LAYER_GIT, led_min, led_max, RGB_OFF);
-    }
 
     if (IS_LAYER_ON(LAYER_VSCODE))
-    {
         set_all_keys_in_layer(LAYER_VSCODE, led_min, led_max, RGB_VSC_BLUE);
-    }
-    else if (rgb_was_off)
-    {
-        set_all_keys_in_layer(LAYER_VSCODE, led_min, led_max, RGB_OFF);
-    }
 
     // turn del purple if alt-tab layer active
-    if (IS_LAYER_ON(LAYER_ENCODER_ALTTAB))
+    switch (current_encoder_mode)
     {
-        rgb_matrix_set_color(13, RGB_PURPLE);
+        case em_volume:
+            rgb_matrix_set_color(13, RGB_PURPLE);
+            break;
+        case em_scroll:
+            rgb_matrix_set_color(13, RGB_BLUE);
+            break;
+        case em_alttab:
+            rgb_matrix_set_color(13, RGB_RED);
+            break;
+        default:
+            // do nothing
+            break;
     }
 
-exit:
+//exit:
     return;
 }
 
@@ -529,19 +732,6 @@ layer_state_t layer_state_set_user(layer_state_t state)
     return state;
 }
 
-// all the default and dip stuff is sus
-
-// static void enable_work_mode(void)
-// {
-//     work_mode = true;
-//     layer_on(BASE_LAYER_WORK);
-    //default_layer_set((layer_state_t)1 << layer);
-    // clear_keyboard();
-    // do_work_rgb_override();
-    // do_mode_lighting_all_leds();
-
-//}
-
 // called by dip_switch_update_kb() in v1.c
 bool dip_switch_update_user(uint8_t index, bool val)
 {
@@ -556,7 +746,6 @@ bool dip_switch_update_user(uint8_t index, bool val)
                 //SEND_STRING("WORK_MODE");
                 layer_on(BASE_LAYER_WORK);
                 layer_on(LAYER_GIT);
-                layer_on(LAYER_ENCODER_ALTTAB);
                 set_base_work_rgb();
             }
             else
@@ -564,7 +753,6 @@ bool dip_switch_update_user(uint8_t index, bool val)
                 //SEND_STRING("HOME_MODE");
                 layer_off(BASE_LAYER_WORK);
                 layer_off(LAYER_GIT);
-                layer_off(LAYER_ENCODER_ALTTAB);
             }
         }
     }

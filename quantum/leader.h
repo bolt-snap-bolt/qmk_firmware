@@ -62,6 +62,11 @@ bool leader_sequence_timed_out(void);
 void leader_reset_timer(void);
 
 /**
+ * Custom func to check 1st character of sequence only
+ */
+bool leader_first_key_is(uint16_t kc);
+
+/**
  * Check the sequence buffer for the given keycode.
  *
  * \param kc The keycode to check.
