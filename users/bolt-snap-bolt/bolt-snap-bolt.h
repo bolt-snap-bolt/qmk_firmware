@@ -3,7 +3,7 @@
 
 #include "quantum.h"
 
-#define BSB_VERSION "v2.0.0"
+#define BSB_VERSION "v2.0.1"
 
 /* Enable compile keycode */
 #define ENABLE_COMPILE_KEYCODE
