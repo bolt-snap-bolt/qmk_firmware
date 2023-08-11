@@ -26,3 +26,6 @@
 
 /* Enable caps-lock LED */
 #define CAPS_LOCK_LED_INDEX 45
+
+/* Enable compile keycode */
+#define ENABLE_COMPILE_KEYCODE
