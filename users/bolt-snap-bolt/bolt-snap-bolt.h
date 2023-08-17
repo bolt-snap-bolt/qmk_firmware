@@ -3,7 +3,7 @@
 
 #include "quantum.h"
 
-#define BSB_VERSION "v2.0.1"
+#define BSB_VERSION "v2.0.2"
 
 /* Enable compile keycode */
 #define ENABLE_COMPILE_KEYCODE
@@ -19,6 +19,7 @@ enum layers
     LAYER_FN,
     LAYER_GIT,
     LAYER_VSCODE,
+    LAYER_ECLIPSE
 };
 
 // layer shorthands for keymap use
@@ -27,6 +28,7 @@ enum layers
 #define L_FN    LAYER_FN
 #define L_GIT   LAYER_GIT
 #define L_VSC   LAYER_VSCODE
+#define L_ECP   LAYER_ECLIPSE
 
 #define KC_TASK LGUI(KC_TAB)
 #define KC_FLXP LGUI(KC_E)
@@ -52,15 +54,19 @@ enum layers
 //colours
 #define RGB_GIT_GREEN    0x00, 0x60, 0x00
 #define RGB_VSC_BLUE     0x00, 0x48, 0x80
+#define RGB_ECP_RED     0x70, 0x00, 0x00
 
 /* Keycodes */
 enum custom_keycodes {
     // see quantum_keycodes.h and keycodes.h
     FWVER = SAFE_RANGE,
     ENCDR,
-    VS_ST, // vsc debug step
-    VS_SI, // vsc debug step in
-    VS_SO, // vsc debug step out
+    VS_SI, // vsc debug step
+    VS_SO, // vsc debug step in
+    VS_SR, // vsc debug step out
+    EC_SI, // eclipse debug step
+    EC_SO, // eclipse debug step in
+    EC_SR, // eclipse debug step out
 };
 
 enum {

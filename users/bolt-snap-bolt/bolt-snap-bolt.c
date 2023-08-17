@@ -1,6 +1,13 @@
 #include "bolt-snap-bolt.h"
 
-/****************** TAP DANCE STUFF ******************/
+/*
+	______________________     ____________________   ___________________   ______  ________________________________________
+	___  __/__    |__  __ \    ___  __ \__    |__  | / /_  ____/__  ____/   ___   |/  /__    |_  ____/__  __ \_  __ \_  ___/
+	__  /  __  /| |_  /_/ /    __  / / /_  /| |_   |/ /_  /    __  __/      __  /|_/ /__  /| |  /    __  /_/ /  / / /____ \
+	_  /   _  ___ |  ____/     _  /_/ /_  ___ |  /|  / / /___  _  /___      _  /  / / _  ___ / /___  _  _, _// /_/ /____/ /
+	/_/    /_/  |_/_/          /_____/ /_/  |_/_/ |_/  \____/  /_____/      /_/  /_/  /_/  |_\____/  /_/ |_| \____/ /____/
+
+*/
 
 void td_wsl_helper(tap_dance_state_t *state, void *user_data)
 {
@@ -255,6 +262,16 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
 
 // clang-format on
 
+//         ███        ▄████████    ▄███████▄ ███▄▄▄▄      ▄█    █▄     ▄██████▄   ▄█       ████████▄
+//     ▀█████████▄   ███    ███   ███    ███ ███▀▀▀██▄   ███    ███   ███    ███ ███       ███   ▀███
+//        ▀███▀▀██   ███    ███   ███    ███ ███   ███   ███    ███   ███    ███ ███       ███    ███
+//         ███   ▀   ███    ███   ███    ███ ███   ███  ▄███▄▄▄▄███▄▄ ███    ███ ███       ███    ███
+//         ███     ▀███████████ ▀█████████▀  ███   ███ ▀▀███▀▀▀▀███▀  ███    ███ ███       ███    ███
+//         ███       ███    ███   ███        ███   ███   ███    ███   ███    ███ ███       ███    ███
+//         ███       ███    ███   ███        ███   ███   ███    ███   ███    ███ ███▌    ▄ ███   ▄███
+//        ▄████▀     ███    █▀   ▄████▀       ▀█   █▀    ███    █▀     ▀██████▀  █████▄▄██ ████████▀
+//                                                                               ▀
+
 static bool work_mode = false;
 
 // called by process_record_kb() in v1.c whenever a key is pressed or released
@@ -424,14 +441,33 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record)
         {
             switch (keycode)
             {
-            case VS_ST:
-                tap_code16(KC_F10);
-                break;
-            case VS_SI:
+            case VS_SI: // step into
                 tap_code16(KC_F11);
                 break;
-            case VS_SO:
+            case VS_SO: // step over
+                tap_code16(KC_F10);
+                break;
+            case VS_SR: // step return ("step out")
                 tap_code16(S(KC_F11));
+                break;
+            default:
+                break;
+            }
+            return FINISHED;
+        }
+
+        if (IS_LAYER_ON(LAYER_ECLIPSE))
+        {
+            switch (keycode)
+            {
+            case EC_SI: // step into
+                tap_code16(KC_F5);
+                break;
+            case EC_SO: // step over
+                tap_code16(KC_F6);
+                break;
+            case EC_SR: // step return
+                tap_code16(KC_F7);
                 break;
             default:
                 break;
@@ -549,8 +585,11 @@ void do_mode_lighting(uint8_t led_min, uint8_t led_max)
     if (IS_LAYER_ON(LAYER_VSCODE))
         set_all_keys_in_layer(LAYER_VSCODE, led_min, led_max, RGB_VSC_BLUE);
 
+    if (IS_LAYER_ON(LAYER_ECLIPSE))
+        set_all_keys_in_layer(LAYER_ECLIPSE, led_min, led_max, RGB_ECP_RED);
+
 #if defined(CUSTOM_ENCODER_ENABLE)
-    // turn del purple if alt-tab layer active
+    // change delete colour based on encoder mode
     switch (current_encoder_mode)
     {
         case em_volume:
